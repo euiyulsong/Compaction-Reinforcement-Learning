@@ -41,7 +41,12 @@ BASE_MODEL = "Qwen/Qwen3-0.6B"
 
 PREVIOUS_ADAPTER = "./qwen3_compaction_grpo"
 
-OUTPUT_DIR = "./qwen3_batched_segmented_compaction"
+TRAIN_MODE = os.environ.get("TRAIN_MODE", "summary_only").strip().lower()
+
+if TRAIN_MODE not in {"summary_only", "reader_only", "joint"}:
+    raise ValueError("TRAIN_MODE must be one of: summary_only, reader_only, joint")
+
+OUTPUT_DIR = f"./qwen3_batched_segmented_compaction_{TRAIN_MODE}"
 
 SEED = 42
 
@@ -1353,7 +1358,13 @@ def trajectory_loss(
         summary3
         final answer
 
-    Thus summary generation + answer generation are jointly trained.
+    TRAIN_MODE controls which generated tokens receive this advantage:
+
+        summary_only -> summary1/2/3 only
+        reader_only  -> final answer only
+        joint        -> summary1/2/3 + final answer
+
+    Rollout/reward computation remains identical in all modes.
     """
 
     if (
@@ -1373,6 +1384,21 @@ def trajectory_loss(
     )
 
     for segment in trajectory.segments:
+
+        # ----------------------------------------------------
+        # Ablation: keep rollout, prompts, rewards, and data
+        # identical; change ONLY which generated segments
+        # receive policy-gradient updates.
+        # ----------------------------------------------------
+        if TRAIN_MODE == "summary_only":
+            should_train = segment.kind.startswith("summary_")
+        elif TRAIN_MODE == "reader_only":
+            should_train = (segment.kind == "answer")
+        else:  # joint
+            should_train = True
+
+        if not should_train:
+            continue
 
         if (
             segment.generated_ids.numel()
@@ -2018,6 +2044,11 @@ def main():
         NUM_ROLLOUTS,
     )
 
+    print(
+        "Training mode:",
+        TRAIN_MODE,
+    )
+
     train_dataset, eval_dataset = (
         load_same_data()
     )
@@ -2054,7 +2085,7 @@ def main():
     )
 
     print(
-        "SEGMENTED COMPACTION RL TRAINING"
+        f"SEGMENTED COMPACTION RL TRAINING [{TRAIN_MODE}]"
     )
 
     print(
@@ -2112,6 +2143,9 @@ def main():
     # ========================================================
 
     comparison = {
+        "train_mode":
+            TRAIN_MODE,
+
         "before":
             before,
 
