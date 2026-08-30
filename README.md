@@ -642,5 +642,6 @@ The result supports further investigation into learning compact memories directl
 ## 2-Step
 ```
 Before: {'N': 100, 'EM': 0.17, 'F1': 0.26895141969376907}
-After : {'N': 100, 'EM': 0.18, 'F1': 0.283643802434125}
+Both : {'N': 100, 'EM': 0.18, 'F1': 0.283643802434125}
+F1 Only : {'N': 100, 'EM': 0.18, 'F1': 0.2672583250646131}
 ```
